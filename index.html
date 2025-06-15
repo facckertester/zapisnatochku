@@ -259,43 +259,50 @@
     }
 
     function updateDisplay() {
-      const output = document.getElementById("assignments");
-      output.innerHTML = "";
+  const output = document.getElementById("assignments");
+  output.innerHTML = "";
 
-      Object.keys(schedule).forEach(day => {
-        const points = schedule[day];
-        const dayBlock = document.createElement("div");
-        dayBlock.innerHTML = `<strong>${day}:</strong>`;
-        Object.keys(points).forEach(pt => {
-          const entry = document.createElement("div");
-          entry.className = "entry";
-          const span = document.createElement("span");
-          span.textContent = `${pt} — ${points[pt]}`;
-          entry.appendChild(span);
+  const daysOrder = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
 
-          if (isAdmin) {
-            const editBtn = document.createElement("button");
-            editBtn.innerHTML = "✏️";
-            editBtn.className = "edit-btn";
-            editBtn.title = "Редактировать";
-            editBtn.onclick = () => editEntry(day, pt);
-            entry.appendChild(editBtn);
+  daysOrder.forEach(day => {
+    if (!schedule[day]) return;
 
-            const delBtn = document.createElement("button");
-            delBtn.innerHTML = "🗑️";
-            delBtn.className = "edit-btn danger";
-            delBtn.title = "Удалить";
-            delBtn.onclick = () => deleteEntry(day, pt);
-            entry.appendChild(delBtn);
-          }
+    const points = schedule[day];
+    const dayBlock = document.createElement("div");
+    dayBlock.innerHTML = `<strong>${day}:</strong>`;
 
-          dayBlock.appendChild(entry);
-        });
-        output.appendChild(dayBlock);
-      });
+    Object.keys(points).forEach(pt => {
+      const entry = document.createElement("div");
+      entry.className = "entry";
 
-      updateDisabledOptions();
-    }
+      const span = document.createElement("span");
+      span.textContent = `${pt} — ${points[pt]}`;
+      entry.appendChild(span);
+
+      if (isAdmin) {
+        const editBtn = document.createElement("button");
+        editBtn.innerHTML = "✏️";
+        editBtn.className = "edit-btn";
+        editBtn.title = "Редактировать";
+        editBtn.onclick = () => editEntry(day, pt);
+        entry.appendChild(editBtn);
+
+        const delBtn = document.createElement("button");
+        delBtn.innerHTML = "🗑️";
+        delBtn.className = "edit-btn danger";
+        delBtn.title = "Удалить";
+        delBtn.onclick = () => deleteEntry(day, pt);
+        entry.appendChild(delBtn);
+      }
+
+      dayBlock.appendChild(entry);
+    });
+
+    output.appendChild(dayBlock);
+  });
+
+  updateDisabledOptions();
+}
 
     function updateDisabledOptions() {
       const day = document.getElementById("day").value;
