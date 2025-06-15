@@ -192,7 +192,7 @@
     const password = "2808";
     let isAdmin = false;
     let weekOffset = 0;
-    let schedule = {};
+    let Schedule = {};
     let currentWeekKey = "";
 
     const daysOrder = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
@@ -226,11 +226,11 @@
       try {
         const response = await fetch(GAS_URL + `?action=get&week=${currentWeekKey}`);
         const data = await response.json();
-        schedule = data.schedule || {};
+        Schedule = data.Schedule || {};
         updateDisplay();
       } catch (e) {
         alert("Ошибка загрузки расписания: " + e.message);
-        schedule = {};
+        Schedule = {};
         updateDisplay();
       }
     }
@@ -240,7 +240,7 @@
         const response = await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'save', week: currentWeekKey, schedule })
+          body: JSON.stringify({ action: 'save', week: currentWeekKey, Schedule })
         });
         const data = await response.json();
         if (!data.success) alert("Ошибка сохранения: " + (data.message || "Неизвестно"));
@@ -254,9 +254,9 @@
       output.innerHTML = "";
 
       daysOrder.forEach(day => {
-        if (!schedule[day]) return;
+        if (!e[day]) return;
 
-        const points = schedule[day];
+        const points = e[day];
         const dayBlock = document.createElement("div");
         dayBlock.innerHTML = `<strong>${day}:</strong>`;
 
@@ -303,7 +303,7 @@
         return;
       }
 
-      const takenPoints = schedule[selectedDay] ? Object.keys(schedule[selectedDay]) : [];
+      const takenPoints = e[selectedDay] ? Object.keys(e[selectedDay]) : [];
 
       for (let i = 0; i < pointSelect.options.length; i++) {
         const option = pointSelect.options[i];
@@ -337,13 +337,13 @@
         return;
       }
 
-      if (!schedule[day]) schedule[day] = {};
-      if (schedule[day][point]) {
+      if (!Schedule[day]) Schedule[day] = {};
+      if (Schedule[day][point]) {
         alert("Эта точка уже занята в выбранный день");
         return;
       }
 
-      schedule[day][point] = name;
+      Schedule[day][point] = name;
       await saveSchedule();
       updateDisplay();
 
@@ -354,7 +354,7 @@
     }
 
     async function editEntry(day, point) {
-      const currentName = schedule[day][point];
+      const currentName = Schedule[day][point];
       const newName = prompt(`Редактировать имя для точки "${point}" в ${day}:`, currentName);
       if (newName === null) return;
       const trimmed = newName.trim();
@@ -362,16 +362,16 @@
         alert("Имя не может быть пустым");
         return;
       }
-      schedule[day][point] = trimmed;
+      Schedule[day][point] = trimmed;
       await saveSchedule();
       updateDisplay();
     }
 
     async function deleteEntry(day, point) {
       if (!confirm(`Удалить запись с точки "${point}" в ${day}?`)) return;
-      delete schedule[day][point];
-      if (Object.keys(schedule[day]).length === 0) {
-        delete schedule[day];
+      delete Schedule[day][point];
+      if (Object.keys(Schedule[day]).length === 0) {
+        delete Schedule[day];
       }
       await saveSchedule();
       updateDisplay();
@@ -402,7 +402,7 @@
         });
         const data = await response.json();
         if (data.success) {
-          schedule = {};
+          Schedule = {};
           updateDisplay();
           alert("Неделя сброшена");
         } else {
