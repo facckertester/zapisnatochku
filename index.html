@@ -187,34 +187,16 @@
     </div>
   </div>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-
   <script>
-    // Firebase конфиг и инициализация
-    const firebaseConfig = {
-      apiKey: "AIzaSyCJg_Ct8239v6ZvH8E9y7GORe49qfila1I",
-      authDomain: "zapisnatochku.firebaseapp.com",
-      projectId: "zapisnatochku",
-      storageBucket: "zapisnatochku.firebasestorage.app",
-      messagingSenderId: "981275339091",
-      appId: "1:981275339091:web:3dffcf50f187ada70299a6"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    // Переменные и константы
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwkhIdKfhkYvvlir4cVzC1IbShcz0WS2O_Y87j04TP1_WmTXDz7zMH2n-ow7yUJN7djAQ/exec';
     const password = "2808";
     let isAdmin = false;
-    let weekOffset = 0; // смещение недель от текущей
+    let weekOffset = 0;
     let schedule = {};
+    let currentWeekKey = "";
 
-    // Дни недели в правильном порядке
     const daysOrder = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
 
-    // Получаем дату понедельника с учетом смещения
     function getMonday(d, offset = 0) {
       const date = new Date(d);
       const day = date.getDay();
@@ -222,43 +204,51 @@
       return new Date(date.setDate(diff));
     }
 
-    // Ключ для хранения в БД - дата понедельника в формате YYYY-MM-DD
     function getWeekKey(mondayDate) {
       return mondayDate.toISOString().split("T")[0];
     }
 
-    // Формат отображения недели "1 июля — 7 июля"
+    function getMonthName(date) {
+      return date.toLocaleString("ru-RU", { month: "long" });
+    }
+
     function formatWeek(mondayDate) {
       const sunday = new Date(mondayDate);
       sunday.setDate(mondayDate.getDate() + 6);
       return `${mondayDate.getDate()} ${getMonthName(mondayDate)} — ${sunday.getDate()} ${getMonthName(sunday)}`;
     }
 
-    // Получить название месяца на русском
-    function getMonthName(date) {
-      return date.toLocaleString("ru-RU", { month: "long" });
-    }
-
-    // Отображение недели и загрузка данных
     async function loadSchedule() {
       const monday = getMonday(new Date(), weekOffset);
       currentWeekKey = getWeekKey(monday);
       document.getElementById("week").value = formatWeek(monday);
 
-      // Загрузка из Firebase
-      const snapshot = await db.ref('schedules/' + currentWeekKey).get();
-      schedule = snapshot.exists() ? snapshot.val() : {};
-      updateDisplay();
+      try {
+        const response = await fetch(GAS_URL + `?action=get&week=${currentWeekKey}`);
+        const data = await response.json();
+        schedule = data.schedule || {};
+        updateDisplay();
+      } catch (e) {
+        alert("Ошибка загрузки расписания: " + e.message);
+        schedule = {};
+        updateDisplay();
+      }
     }
 
-    // Сохранение расписания в Firebase
-    function saveSchedule() {
-      const monday = getMonday(new Date(), weekOffset);
-      const key = getWeekKey(monday);
-      db.ref('schedules/' + key).set(schedule);
+    async function saveSchedule() {
+      try {
+        const response = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save', week: currentWeekKey, schedule })
+        });
+        const data = await response.json();
+        if (!data.success) alert("Ошибка сохранения: " + (data.message || "Неизвестно"));
+      } catch (e) {
+        alert("Ошибка сохранения: " + e.message);
+      }
     }
 
-    // Обновить интерфейс назначений
     function updateDisplay() {
       const output = document.getElementById("assignments");
       output.innerHTML = "";
@@ -303,7 +293,6 @@
       updatePointOptions();
     }
 
-    // Обновить список точек, чтобы блокировать уже выбранные в этот день
     function updatePointOptions() {
       const daySelect = document.getElementById("day");
       const pointSelect = document.getElementById("point");
@@ -314,17 +303,15 @@
         return;
       }
 
-      // Список точек занятых в выбранный день
       const takenPoints = schedule[selectedDay] ? Object.keys(schedule[selectedDay]) : [];
 
       for (let i = 0; i < pointSelect.options.length; i++) {
         const option = pointSelect.options[i];
-        if (option.value === "") continue; // пропускаем пустой выбор
+        if (option.value === "") continue;
         option.disabled = takenPoints.includes(option.value);
       }
     }
 
-    // Включить все точки (снять блокировку)
     function enableAllPoints() {
       const pointSelect = document.getElementById("point");
       for (let i = 0; i < pointSelect.options.length; i++) {
@@ -332,8 +319,7 @@
       }
     }
 
-    // Назначить точку
-    function assignPoint() {
+    async function assignPoint() {
       const name = document.getElementById("name").value.trim();
       const day = document.getElementById("day").value;
       const point = document.getElementById("point").value;
@@ -358,43 +344,39 @@
       }
 
       schedule[day][point] = name;
-      saveSchedule();
+      await saveSchedule();
       updateDisplay();
 
-      // Очистить поля
       document.getElementById("name").value = "";
       document.getElementById("day").value = "";
       document.getElementById("point").value = "";
       enableAllPoints();
     }
 
-    // Редактирование записи
-    function editEntry(day, point) {
+    async function editEntry(day, point) {
       const currentName = schedule[day][point];
       const newName = prompt(`Редактировать имя для точки "${point}" в ${day}:`, currentName);
-      if (newName === null) return; // отмена
+      if (newName === null) return;
       const trimmed = newName.trim();
       if (!trimmed) {
         alert("Имя не может быть пустым");
         return;
       }
       schedule[day][point] = trimmed;
-      saveSchedule();
+      await saveSchedule();
       updateDisplay();
     }
 
-    // Удаление записи
-    function deleteEntry(day, point) {
+    async function deleteEntry(day, point) {
       if (!confirm(`Удалить запись с точки "${point}" в ${day}?`)) return;
       delete schedule[day][point];
       if (Object.keys(schedule[day]).length === 0) {
         delete schedule[day];
       }
-      saveSchedule();
+      await saveSchedule();
       updateDisplay();
     }
 
-    // Проверка пароля администратора
     function checkAdmin() {
       const entered = document.getElementById("adminPass").value;
       if (entered === password) {
@@ -408,42 +390,48 @@
       }
     }
 
-    // Сброс недели (только админ)
-    function resetWeek() {
+    async function resetWeek() {
       if (!isAdmin) return;
       if (!confirm("Вы уверены, что хотите сбросить все записи этой недели?")) return;
 
-      const monday = getMonday(new Date(), weekOffset);
-      const key = getWeekKey(monday);
-      db.ref('schedules/' + key).remove().then(() => {
-        schedule = {};
-        updateDisplay();
-        alert("Неделя сброшена");
-      }).catch(err => alert("Ошибка при сбросе: " + err.message));
+      try {
+        const response = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'reset', week: currentWeekKey })
+        });
+        const data = await response.json();
+        if (data.success) {
+          schedule = {};
+          updateDisplay();
+          alert("Неделя сброшена");
+        } else {
+          alert("Ошибка при сбросе: " + (data.message || "Неизвестно"));
+        }
+      } catch (e) {
+        alert("Ошибка при сбросе: " + e.message);
+      }
     }
 
-    // Изменить неделю
-    function changeWeek(delta) {
+    async function changeWeek(delta) {
       weekOffset += delta;
-      const monday = getMonday(new Date(), weekOffset);
-      document.getElementById("week").value = formatWeek(monday);
-      loadSchedule();
+      await loadSchedule();
     }
 
-    // Обновление опций точек при изменении дня
-    document.getElementById("day").addEventListener("change", updatePointOptions);
-
-    // Тема: светлая/тёмная
     function toggleTheme() {
       document.body.classList.toggle("dark");
       const btn = document.getElementById("themeBtn");
-      btn.textContent = document.body.classList.contains("dark") ? "Светлая тема" : "Тёмная тема";
+      if (document.body.classList.contains("dark")) {
+        btn.textContent = "Светлая тема";
+      } else {
+        btn.textContent = "Тёмная тема";
+      }
     }
 
+    document.getElementById("day").addEventListener("change", updatePointOptions);
+
     // Инициализация
-    window.onload = () => {
-      changeWeek(0); // Загрузить текущую неделю сразу и показать заголовок недели
-    };
+    loadSchedule();
   </script>
 </body>
 </html>
