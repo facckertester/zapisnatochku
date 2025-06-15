@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>График точек</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --fg: #333;
+      --container-bg: #fff;
+      --input-bg: #fff;
+      --input-border: #ccc;
+      --button-bg: #007bff;
+      --button-fg: white;
+    }
+
+    body.dark {
+      --bg: #1e1e1e;
+      --fg: #f0f0f0;
+      --container-bg: #2a2a2a;
+      --input-bg: #333;
+      --input-border: #666;
+      --button-bg: #444;
+      --button-fg: #f0f0f0;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: var(--bg);
+      color: var(--fg);
+      transition: all 0.3s ease;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: var(--container-bg);
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      transition: background 0.3s ease;
+    }
+
+    h2, h3 {
+      text-align: center;
+    }
+
+    label {
+      display: block;
+      margin-top: 1rem;
+    }
+
+    input, select, button {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid var(--input-border);
+      background: var(--input-bg);
+      color: var(--fg);
+    }
+
+    button {
+      background: var(--button-bg);
+      color: var(--button-fg);
+      border: none;
+      margin-top: 1rem;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    .entry {
+      background: #f9f9f9;
+      padding: 5px 10px;
+      border-radius: 5px;
+      margin-top: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #000;
+    }
+
+    .entry span {
+      flex: 1;
+    }
+
+    .admin-section {
+      margin-top: 2rem;
+      border-top: 1px solid #ccc;
+      padding-top: 1rem;
+    }
+
+    .week-selector {
+      display: flex;
+      align-items: stretch;
+      gap: 5px;
+      margin-bottom: 1rem;
+    }
+
+    .week-selector button {
+      flex: 1;
+      height: 44px;
+      padding: 0;
+      font-size: 0.9rem;
+    }
+
+    .week-selector input {
+      height: 44px;
+      text-align: center;
+      font-weight: bold;
+      flex: 2;
+    }
+
+    .edit-btn {
+      margin-left: 10px;
+      font-size: 1.1rem;
+      background: none;
+      border: none;
+      color: #007bff;
+      cursor: pointer;
+    }
+
+    .edit-btn:hover {
+      color: #0056b3;
+    }
+
+    .danger {
+      color: #dc3545;
+    }
+
+    .theme-toggle {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    .theme-toggle button {
+      width: auto;
+      padding: 8px 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="theme-toggle">
+      <button onclick="toggleTheme()" id="themeBtn">Тёмная тема</button>
+    </div>
+
+    <h2>График по неделям</h2>
+
+    <div class="week-selector">
+      <button onclick="changeWeek(-1)">← пред. неделя</button>
+      <input type="text" id="week" readonly>
+      <button onclick="changeWeek(1)">след. неделя →</button>
+    </div>
+
+    <label for="name">Имя:</label>
+    <input type="text" id="name">
+
+    <label for="day">День недели:</label>
+    <select id="day">
+      <option value="">Выберите день</option>
+      <option>Понедельник</option>
+      <option>Вторник</option>
+      <option>Среда</option>
+      <option>Четверг</option>
+      <option>Пятница</option>
+      <option>Суббота</option>
+      <option>Воскресенье</option>
+    </select>
+
+    <label for="point">Точка:</label>
+    <select id="point">
+      <option value="">Выберите точку</option>
+      <option>Вата - Мороженое</option>
+      <option>Батут</option>
+      <option>Машинки - Лабиринт</option>
+      <option>Аркада - Тир</option>
+    </select>
+
+    <button onclick="assignPoint()">Записаться</button>
+
+    <h3>Назначения</h3>
+    <div id="assignments"></div>
+
+    <div class="admin-section">
+      <label for="adminPass">Пароль администратора:</label>
+      <input type="password" id="adminPass">
+      <button onclick="checkAdmin()">Войти как админ</button>
+
+      <div id="adminControls" style="display:none;">
+        <button onclick="resetWeek()" style="background:#dc3545;">Сбросить неделю</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const password = "2808";
+    let isAdmin = false;
+    let currentMonday = getMonday(new Date());
+    let currentWeekKey = getWeekKey(currentMonday);
+    let schedule = loadSchedule();
+
+    function getMonday(date) {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - (day === 0 ? 6 : day - 1);
+      return new Date(d.setDate(diff));
+    }
+
+    function getWeekKey(mondayDate) {
+      return mondayDate.toISOString().split("T")[0];
+    }
+
+    function formatWeek(mondayDate) {
+      const sunday = new Date(mondayDate);
+      sunday.setDate(mondayDate.getDate() + 6);
+      return `${mondayDate.getDate()} ${getMonthName(mondayDate)} — ${sunday.getDate()} ${getMonthName(sunday)}`;
+    }
+
+    function getMonthName(date) {
+      return date.toLocaleString("ru-RU", { month: "long" });
+    }
+
+    function changeWeek(delta) {
+      currentMonday.setDate(currentMonday.getDate() + delta * 7);
+      currentWeekKey = getWeekKey(currentMonday);
+      schedule = loadSchedule();
+      document.getElementById("week").value = formatWeek(currentMonday);
+      updateDisplay();
+    }
+
+    function assignPoint() {
+      const name = document.getElementById("name").value.trim();
+      const day = document.getElementById("day").value;
+      const point = document.getElementById("point").value;
+
+      if (!name || !day || !point) {
+        alert("Заполните все поля.");
+        return;
+      }
+
+      if (!schedule[day]) schedule[day] = {};
+      if (schedule[day][point]) {
+        alert("Эта точка уже занята в этот день.");
+        return;
+      }
+
+      schedule[day][point] = name;
+      saveSchedule();
+      updateDisplay();
+    }
+
+    function updateDisplay() {
+      const output = document.getElementById("assignments");
+      output.innerHTML = "";
+
+      Object.keys(schedule).forEach(day => {
+        const points = schedule[day];
+        const dayBlock = document.createElement("div");
+        dayBlock.innerHTML = `<strong>${day}:</strong>`;
+        Object.keys(points).forEach(pt => {
+          const entry = document.createElement("div");
+          entry.className = "entry";
+          const span = document.createElement("span");
+          span.textContent = `${pt} — ${points[pt]}`;
+          entry.appendChild(span);
+
+          if (isAdmin) {
+            const editBtn = document.createElement("button");
+            editBtn.innerHTML = "✏️";
+            editBtn.className = "edit-btn";
+            editBtn.title = "Редактировать";
+            editBtn.onclick = () => editEntry(day, pt);
+            entry.appendChild(editBtn);
+
+            const delBtn = document.createElement("button");
+            delBtn.innerHTML = "🗑️";
+            delBtn.className = "edit-btn danger";
+            delBtn.title = "Удалить";
+            delBtn.onclick = () => deleteEntry(day, pt);
+            entry.appendChild(delBtn);
+          }
+
+          dayBlock.appendChild(entry);
+        });
+        output.appendChild(dayBlock);
+      });
+
+      updateDisabledOptions();
+    }
+
+    function updateDisabledOptions() {
+      const day = document.getElementById("day").value;
+      const pointSelect = document.getElementById("point");
+
+      [...pointSelect.options].forEach(opt => {
+        if (!opt.value) return;
+        opt.disabled = false;
+        if (schedule[day] && schedule[day][opt.value]) {
+          opt.disabled = true;
+        }
+      });
+    }
+
+    document.getElementById("day").addEventListener("change", updateDisabledOptions);
+
+    function checkAdmin() {
+      const inputPass = document.getElementById("adminPass").value;
+      if (inputPass === password) {
+        isAdmin = true;
+        document.getElementById("adminControls").style.display = "block";
+        alert("Вы вошли как администратор.");
+        updateDisplay();
+      } else {
+        alert("Неверный пароль.");
+      }
+    }
+
+    function resetWeek() {
+      if (confirm("Сбросить все назначения на этой неделе?")) {
+        localStorage.removeItem(currentWeekKey);
+        schedule = {};
+        updateDisplay();
+      }
+    }
+
+    function loadSchedule() {
+      const data = localStorage.getItem(currentWeekKey);
+      return data ? JSON.parse(data) : {};
+    }
+
+    function saveSchedule() {
+      localStorage.setItem(currentWeekKey, JSON.stringify(schedule));
+    }
+
+    function deleteEntry(day, point) {
+      if (confirm(`Удалить назначение "${point}" в "${day}"?`)) {
+        delete schedule[day][point];
+        if (Object.keys(schedule[day]).length === 0) delete schedule[day];
+        saveSchedule();
+        updateDisplay();
+      }
+    }
+
+    function editEntry(day, point) {
+      const current = schedule[day][point];
+      const newName = prompt(`Изменить имя для "${point}" в "${day}":`, current);
+      if (newName && newName.trim()) {
+        schedule[day][point] = newName.trim();
+        saveSchedule();
+        updateDisplay();
+      }
+    }
+
+    function toggleTheme() {
+      const body = document.body;
+      const isDark = body.classList.toggle("dark");
+      document.getElementById("themeBtn").textContent = isDark ? "Светлая тема" : "Тёмная тема";
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+    }
+
+    // Инициализация
+    document.getElementById("week").value = formatWeek(currentMonday);
+    updateDisplay();
+
+    // Применить тему при загрузке
+    (function applySavedTheme() {
+      const saved = localStorage.getItem("theme");
+      if (saved === "dark") {
+        document.body.classList.add("dark");
+        document.getElementById("themeBtn").textContent = "Светлая тема";
+      }
+    })();
+  </script>
+</body>
+</html>
